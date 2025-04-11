@@ -1,18 +1,24 @@
-# PowerShell GitHub Script Launcher
+# PowerShell GitHub Script Launcher (Debug)
 # Usage: irm "https://raw.githubusercontent.com/IsT3RiK/Scripts/main/launcher.ps1" | iex
 
-# Configuration
 $githubUser = "IsT3RiK"
 $githubRepo = "Scripts"
 $githubBranch = "main"
-$githubPath = "" # Dossier à la racine du repo, sinon mettre "subfolder"
+$githubPath = "" # Dossier à la racine du repo
 
-# Récupère la liste des fichiers .ps1 via l’API GitHub
-$apiUrl = "https://api.github.com/repos/$githubUser/$githubRepo/contents/$githubPath?ref=$githubBranch"
+# Construction correcte de l’URL (pas de double slash)
+if ($githubPath -eq "") {
+  $apiUrl = "https://api.github.com/repos/$githubUser/$githubRepo/contents?ref=$githubBranch"
+} else {
+  $apiUrl = "https://api.github.com/repos/$githubUser/$githubRepo/contents/$githubPath?ref=$githubBranch"
+}
+
 try {
   $files = Invoke-RestMethod -Uri $apiUrl -Headers @{ "User-Agent" = "ps-launcher" }
 } catch {
   Write-Host "Erreur lors de la récupération du contenu GitHub." -ForegroundColor Red
+  Write-Host "Détail de l’erreur : $($_.Exception.Message)" -ForegroundColor Yellow
+  Write-Host "URL utilisée : $apiUrl" -ForegroundColor Yellow
   exit 1
 }
 
@@ -22,7 +28,6 @@ if (-not $ps1Files) {
   exit 0
 }
 
-# Affiche la liste et demande à l’utilisateur de choisir
 Write-Host "Scripts disponibles sur $githubUser/$githubRepo :"
 for ($i = 0; $i -lt $ps1Files.Count; $i++) {
   Write-Host "$($i+1)) $($ps1Files[$i].name)"
@@ -42,5 +47,7 @@ try {
   Invoke-Expression $scriptContent
 } catch {
   Write-Host "Erreur lors de l’exécution du script." -ForegroundColor Red
+  Write-Host "Détail de l’erreur : $($_.Exception.Message)" -ForegroundColor Yellow
+  Write-Host "URL utilisée : $rawUrl" -ForegroundColor Yellow
   exit 1
 }
