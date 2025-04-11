@@ -1,6 +1,8 @@
-# PowerShell GitHub Script Launcher (Recherche Récursive)
-# Usage: irm "https://raw.githubusercontent.com/IsT3RiK/Scripts/main/launcher.ps1" | iex
+# PowerShell GitHub Script Launcher avec GUI
+# Usage : irm "https://raw.githubusercontent.com/IsT3RiK/Scripts/main/launcher.ps1" | iex
 
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $githubUser = "IsT3RiK"
@@ -15,8 +17,7 @@ function Get-GitHubFilesRecursive {
   try {
     $items = Invoke-RestMethod -Uri $apiUrl -Headers @{ "User-Agent" = "ps-launcher" }
   } catch {
-    Write-Host "Erreur lors de la récupération du contenu GitHub ($path)." -ForegroundColor Red
-    Write-Host "Détail de l’erreur : $($_ | Out-String)" -ForegroundColor Yellow
+    [System.Windows.Forms.MessageBox]::Show("Erreur lors de la récupération du contenu GitHub ($path).`n$($_.Exception.Message)", "Erreur", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
     return @()
   }
   $result = @()
@@ -34,34 +35,88 @@ function Get-GitHubFilesRecursive {
   return $result
 }
 
-Write-Host "Recherche des scripts .ps1 dans le dépôt $githubUser/$githubRepo ..."
-$scripts = Get-GitHubFilesRecursive
+# Création de la fenêtre
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "GitHub Script Launcher"
+$form.Size = New-Object System.Drawing.Size(500,400)
+$form.StartPosition = "CenterScreen"
 
-if (-not $scripts -or $scripts.Count -eq 0) {
-  Write-Host "Aucun script .ps1 trouvé dans le dépôt." -ForegroundColor Yellow
-  exit 0
+# ListBox pour les scripts
+$listBox = New-Object System.Windows.Forms.ListBox
+$listBox.Location = New-Object System.Drawing.Point(10,10)
+$listBox.Size = New-Object System.Drawing.Size(460,280)
+$listBox.Anchor = "Top,Left,Right"
+$form.Controls.Add($listBox)
+
+# Bouton Exécuter
+$runButton = New-Object System.Windows.Forms.Button
+$runButton.Text = "Exécuter le script sélectionné"
+$runButton.Location = New-Object System.Drawing.Point(10,300)
+$runButton.Size = New-Object System.Drawing.Size(220,30)
+$runButton.Enabled = $false
+$form.Controls.Add($runButton)
+
+# Bouton Fermer
+$closeButton = New-Object System.Windows.Forms.Button
+$closeButton.Text = "Fermer"
+$closeButton.Location = New-Object System.Drawing.Point(250,300)
+$closeButton.Size = New-Object System.Drawing.Size(100,30)
+$form.Controls.Add($closeButton)
+
+# Label d'état
+$statusLabel = New-Object System.Windows.Forms.Label
+$statusLabel.Text = "Chargement des scripts depuis GitHub..."
+$statusLabel.Location = New-Object System.Drawing.Point(10,340)
+$statusLabel.Size = New-Object System.Drawing.Size(460,20)
+$form.Controls.Add($statusLabel)
+
+# Charger les scripts en arrière-plan
+$scriptList = @()
+$job = [System.ComponentModel.BackgroundWorker]::new()
+$job.DoWork += {
+  $scriptList = Get-GitHubFilesRecursive
 }
-
-Write-Host "Scripts disponibles :"
-for ($i = 0; $i -lt $scripts.Count; $i++) {
-  Write-Host "$($i+1)) $($scripts[$i].path)"
+$job.RunWorkerCompleted += {
+  $listBox.Items.Clear()
+  if ($scriptList.Count -eq 0) {
+    $statusLabel.Text = "Aucun script .ps1 trouvé dans le dépôt."
+  } else {
+    foreach ($s in $scriptList) {
+      $listBox.Items.Add($s.path)
+    }
+    $statusLabel.Text = "Sélectionnez un script et cliquez sur Exécuter."
+  }
 }
-do {
-  $choice = Read-Host "Entrez le numéro du script à exécuter (ou q pour quitter)"
-  if ($choice -eq "q") { exit 0 }
-  $valid = $choice -as [int]
-} while (-not $valid -or $valid -lt 1 -or $valid -gt $scripts.Count)
+$job.RunWorkerAsync()
 
-$selected = $scripts[$choice-1]
-$rawUrl = $selected.download_url
+# Activer le bouton si un script est sélectionné
+$listBox.Add_SelectedIndexChanged({
+  if ($listBox.SelectedIndex -ge 0) {
+    $runButton.Enabled = $true
+  } else {
+    $runButton.Enabled = $false
+  }
+})
 
-Write-Host "Téléchargement et exécution de $($selected.path)..." -ForegroundColor Cyan
-try {
-  $scriptContent = Invoke-RestMethod -Uri $rawUrl -Headers @{ "User-Agent" = "ps-launcher" }
-  Invoke-Expression $scriptContent
-} catch {
-  Write-Host "Erreur lors de l’exécution du script." -ForegroundColor Red
-  Write-Host "Détail de l’erreur : $($_ | Out-String)" -ForegroundColor Yellow
-  Write-Host "URL utilisée : $rawUrl" -ForegroundColor Yellow
-  exit 1
-}
+# Action bouton Exécuter
+$runButton.Add_Click({
+  $idx = $listBox.SelectedIndex
+  if ($idx -ge 0) {
+    $selected = $scriptList[$idx]
+    $statusLabel.Text = "Téléchargement et exécution de $($selected.path)..."
+    try {
+      $scriptContent = Invoke-RestMethod -Uri $selected.download_url -Headers @{ "User-Agent" = "ps-launcher" }
+      Invoke-Expression $scriptContent
+      $statusLabel.Text = "Script exécuté : $($selected.name)"
+    } catch {
+      [System.Windows.Forms.MessageBox]::Show("Erreur lors de l’exécution du script.`n$($_.Exception.Message)", "Erreur", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+      $statusLabel.Text = "Erreur lors de l’exécution."
+    }
+  }
+})
+
+# Action bouton Fermer
+$closeButton.Add_Click({ $form.Close() })
+
+# Afficher la fenêtre
+[void]$form.ShowDialog()
