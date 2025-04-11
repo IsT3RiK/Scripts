@@ -1,4 +1,4 @@
-# PowerShell GitHub Script Launcher avec GUI
+# PowerShell GitHub Script Launcher avec GUI (Version Simple)
 # Usage : irm "https://raw.githubusercontent.com/IsT3RiK/Scripts/main/launcher.ps1" | iex
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -35,6 +35,14 @@ function Get-GitHubFilesRecursive {
   return $result
 }
 
+# Charger la liste AVANT d'ouvrir la fenêtre
+$statusMsg = "Chargement des scripts depuis GitHub..."
+$scripts = Get-GitHubFilesRecursive
+if (-not $scripts -or $scripts.Count -eq 0) {
+  [System.Windows.Forms.MessageBox]::Show("Aucun script .ps1 trouvé dans le dépôt.", "Aucun script", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+  return
+}
+
 # Création de la fenêtre
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "GitHub Script Launcher"
@@ -46,6 +54,9 @@ $listBox = New-Object System.Windows.Forms.ListBox
 $listBox.Location = New-Object System.Drawing.Point(10,10)
 $listBox.Size = New-Object System.Drawing.Size(460,280)
 $listBox.Anchor = "Top,Left,Right"
+foreach ($s in $scripts) {
+  $listBox.Items.Add($s.path)
+}
 $form.Controls.Add($listBox)
 
 # Bouton Exécuter
@@ -65,29 +76,10 @@ $form.Controls.Add($closeButton)
 
 # Label d'état
 $statusLabel = New-Object System.Windows.Forms.Label
-$statusLabel.Text = "Chargement des scripts depuis GitHub..."
+$statusLabel.Text = "Sélectionnez un script et cliquez sur Exécuter."
 $statusLabel.Location = New-Object System.Drawing.Point(10,340)
 $statusLabel.Size = New-Object System.Drawing.Size(460,20)
 $form.Controls.Add($statusLabel)
-
-# Charger les scripts en arrière-plan
-$scriptList = @()
-$job = [System.ComponentModel.BackgroundWorker]::new()
-$job.DoWork += {
-  $scriptList = Get-GitHubFilesRecursive
-}
-$job.RunWorkerCompleted += {
-  $listBox.Items.Clear()
-  if ($scriptList.Count -eq 0) {
-    $statusLabel.Text = "Aucun script .ps1 trouvé dans le dépôt."
-  } else {
-    foreach ($s in $scriptList) {
-      $listBox.Items.Add($s.path)
-    }
-    $statusLabel.Text = "Sélectionnez un script et cliquez sur Exécuter."
-  }
-}
-$job.RunWorkerAsync()
 
 # Activer le bouton si un script est sélectionné
 $listBox.Add_SelectedIndexChanged({
@@ -102,7 +94,7 @@ $listBox.Add_SelectedIndexChanged({
 $runButton.Add_Click({
   $idx = $listBox.SelectedIndex
   if ($idx -ge 0) {
-    $selected = $scriptList[$idx]
+    $selected = $scripts[$idx]
     $statusLabel.Text = "Téléchargement et exécution de $($selected.path)..."
     try {
       $scriptContent = Invoke-RestMethod -Uri $selected.download_url -Headers @{ "User-Agent" = "ps-launcher" }
