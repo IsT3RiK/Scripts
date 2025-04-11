@@ -1,12 +1,14 @@
-# PowerShell GitHub Script Launcher (Debug)
+# PowerShell GitHub Script Launcher (TLS Debug)
 # Usage: irm "https://raw.githubusercontent.com/IsT3RiK/Scripts/main/launcher.ps1" | iex
+
+# Forcer TLS 1.2 (GitHub API l’exige)
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $githubUser = "IsT3RiK"
 $githubRepo = "Scripts"
 $githubBranch = "main"
 $githubPath = "" # Dossier à la racine du repo
 
-# Construction correcte de l’URL (pas de double slash)
 if ($githubPath -eq "") {
   $apiUrl = "https://api.github.com/repos/$githubUser/$githubRepo/contents?ref=$githubBranch"
 } else {
@@ -17,7 +19,7 @@ try {
   $files = Invoke-RestMethod -Uri $apiUrl -Headers @{ "User-Agent" = "ps-launcher" }
 } catch {
   Write-Host "Erreur lors de la récupération du contenu GitHub." -ForegroundColor Red
-  Write-Host "Détail de l’erreur : $($_.Exception.Message)" -ForegroundColor Yellow
+  Write-Host "Détail de l’erreur : $($_ | Out-String)" -ForegroundColor Yellow
   Write-Host "URL utilisée : $apiUrl" -ForegroundColor Yellow
   exit 1
 }
@@ -47,7 +49,7 @@ try {
   Invoke-Expression $scriptContent
 } catch {
   Write-Host "Erreur lors de l’exécution du script." -ForegroundColor Red
-  Write-Host "Détail de l’erreur : $($_.Exception.Message)" -ForegroundColor Yellow
+  Write-Host "Détail de l’erreur : $($_ | Out-String)" -ForegroundColor Yellow
   Write-Host "URL utilisée : $rawUrl" -ForegroundColor Yellow
   exit 1
 }
