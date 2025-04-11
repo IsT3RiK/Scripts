@@ -1,0 +1,7 @@
+Dossier System32
+"C:\Windows\System32\mstsc.exe"
+"C:\Windows\System32\mstscax.dll"
+
+Dossier SysWOW64
+"C:\Windows\SysWOW64\mstsc.exe"
+"C:\Windows\SysWOW64\mstscax.dll"
